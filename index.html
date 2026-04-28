@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wafelverkoop Tablet</title>
+    <style>
+        body { font-family: sans-serif; background-color: #fdf2e9; padding: 10px; margin: 0; }
+        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 400px; margin: auto; }
+        h2 { color: #e67e22; text-align: center; }
+        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        .item { display: flex; justify-content: space-between; align-items: center; background: #fff8f0; padding: 10px; margin-bottom: 5px; border-radius: 8px; }
+        .item input { width: 60px; text-align: center; margin: 0; }
+        .total { background: #e67e22; color: white; padding: 15px; border-radius: 8px; text-align: center; font-weight: bold; font-size: 1.2em; margin-top: 15px; }
+        button { width: 100%; background: #27ae60; color: white; border: none; padding: 15px; border-radius: 8px; font-size: 18px; cursor: pointer; margin-top: 10px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>🧇 Directe Verkoop</h2>
+    <input type="text" id="naam" placeholder="Naam klant" required>
+    <input type="email" id="email" placeholder="E-mailadres" required>
+
+    <div class="item"><span>Vanille (€7)</span><input type="number" class="qty" id="v" value="0" data-p="7"></div>
+    <div class="item"><span>Suikervrij (€10)</span><input type="number" class="qty" id="s" value="0" data-p="10"></div>
+    <div class="item"><span>Mix (€8)</span><input type="number" class="qty" id="m" value="0" data-p="8"></div>
+    <div class="item"><span>Choco (€7)</span><input type="number" class="qty" id="c" value="0" data-p="7"></div>
+    <div class="item"><span>Frangipane (€8)</span><input type="number" class="qty" id="f" value="0" data-p="8"></div>
+    
+    <label style="font-size: 0.8em; margin-top: 10px; display: block;">Extra donatie / vrij bedrag:</label>
+    <input type="number" id="vrij" value="0" step="0.5">
+
+    <div class="total" id="totaal">Totaal: €0,00</div>
+    <button id="saveBtn" onclick="stuurData()">Bestelling Opslaan</button>
+    <p id="msg" style="text-align: center;"></p>
+</div>
+
+<script>
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz2RrIZYovAAJtBxZj3zh4-GBdbtOvKDGtt3fOzIOVokQW3yisAf8dPj3VNAdhqsrZN/exec';
+
+    function bereken() {
+        let t = 0;
+        document.querySelectorAll('.qty').forEach(i => t += i.value * i.dataset.p);
+        t += parseFloat(document.getElementById('vrij').value || 0);
+        document.getElementById('totaal').innerText = "Totaal: €" + t.toFixed(2).replace('.', ',');
+    }
+    document.querySelectorAll('input').forEach(i => i.addEventListener('input', bereken));
+
+    function stuurData() {
+        const btn = document.getElementById('saveBtn');
+        const msg = document.getElementById('msg');
+        btn.disabled = true;
+        msg.innerText = "⏳ Bezig met opslaan...";
+
+        const payload = {
+            naam: document.getElementById('naam').value,
+            email: document.getElementById('email').value,
+            vanille: document.getElementById('v').value,
+            suikervrij: document.getElementById('s').value,
+            mix: document.getElementById('m').value,
+            choco: document.getElementById('c').value,
+            frangipane: document.getElementById('f').value,
+            vrijBedrag: document.getElementById('vrij').value
+        };
+
+        fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) })
+        .then(() => {
+            msg.innerText = "✅ Gelukt! Rij is toegevoegd.";
+            document.querySelectorAll('input').forEach(i => i.value = (i.type == 'number' ? 0 : ''));
+            bereken();
+            btn.disabled = false;
+        }).catch(() => {
+            msg.innerText = "❌ Fout! Probeer opnieuw.";
+            btn.disabled = false;
+        });
+    }
+</script>
+</body>
+</html>
