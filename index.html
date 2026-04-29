@@ -498,29 +498,47 @@ input, textarea {
     }
 
     function stuurData() {
-        const btn = document.getElementById('saveBtn');
-        const msg = document.getElementById('msg');
-        btn.disabled = true;
-        msg.innerText = '⏳ Bezig met opslaan...';
-
-        const payload = {
-            naam: document.getElementById('naam').value,
-            email: document.getElementById('email').value,
-            adres: document.getElementById('adres').value,
-            ...items.reduce((acc, item) => ({ ...acc, [item.name.toLowerCase()]: order[item.id] }), {})
-        };
-
-        fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) })
-            .then(() => {
-                msg.innerText = '✅ Gelukt! Bestelling is verzonden.';
-                resetOrder();
-                btn.disabled = false;
-            })
-            .catch(() => {
-                msg.innerText = '❌ Fout! Probeer opnieuw.';
-                btn.disabled = false;
-            });
+    const btn = document.getElementById('saveBtn');
+    const msg = document.getElementById('msg');
+    
+    // Controleer of naam en email zijn ingevuld
+    if (!document.getElementById('naam').value || !document.getElementById('email').value) {
+        alert("Vul aub naam en e-mail in.");
+        return;
     }
+
+    btn.disabled = true;
+    msg.innerText = '⏳ Bezig met opslaan...';
+
+    // We maken de namen van de wafels exact gelijk aan wat het script verwacht
+    const payload = {
+        naam: document.getElementById('naam').value,
+        email: document.getElementById('email').value,
+        adres: document.getElementById('adres').value,
+        vanille: order['v'] || 0,
+        suikervrij: order['s'] || 0,
+        mix: order['m'] || 0,
+        choco: order['c'] || 0,
+        frangipane: order['f'] || 0
+    };
+
+    fetch(SCRIPT_URL, { 
+        method: 'POST', 
+        mode: 'no-cors', // Belangrijk voor Google Scripts
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload) 
+    })
+    .then(() => {
+        msg.innerText = '✅ Gelukt! Bestelling is verzonden.';
+        resetOrder();
+        btn.disabled = false;
+    })
+    .catch((error) => {
+        console.error(error);
+        msg.innerText = '❌ Fout! Probeer opnieuw.';
+        btn.disabled = false;
+    });
+}
 
     function resetOrder() {
         items.forEach(item => {
