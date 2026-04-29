@@ -29,6 +29,14 @@ input, textarea {
     user-select: text !important;
 }
 
+        html, body {
+    touch-action: manipulation;
+}
+
+/* Specifiek voor de knoppen, aangezien daar vaak snel achter elkaar op geklikt wordt */
+.item-card, button {
+    touch-action: manipulation;
+}
         body {
             margin: 0;
             min-height: 100vh;
