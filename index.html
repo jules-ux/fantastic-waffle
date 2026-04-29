@@ -12,8 +12,22 @@
         }
 
         * {
-            box-sizing: border-box;
-        }
+    box-sizing: border-box;
+    /* Schakel tekstselectie uit voor alle browsers */
+    -webkit-user-select: none; /* Safari & Chrome op iOS */
+    -moz-user-select: none;    /* Firefox */
+    -ms-user-select: none;     /* IE/Edge */
+    user-select: none;         /* Standaard */
+    
+    /* Schakel het systeem-menu bij lang indrukken uit (belangrijk voor iOS) */
+    -webkit-touch-callout: none; 
+}
+
+/* Zorg dat input velden WEL invulbaar blijven, anders kun je niet typen! */
+input, textarea {
+    -webkit-user-select: text !important;
+    user-select: text !important;
+}
 
         body {
             margin: 0;
