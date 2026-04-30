@@ -38,8 +38,8 @@ let isTracking = false;
 let currentRoute = [];
 let currentRouteLine = null;
 let pastRouteLines = [];
-let gridOverlays = [];
 let suggestedRouteLine = null;
+let currentNavUrl = null;
 let visitedCells = {};
 let currentPosition = null;
 let trackingStartTime = null;
@@ -287,7 +287,7 @@ async function saveCurrentRoute() {
 
     // Reset current route line to a "past" style
     if (currentRouteLine) {
-        currentRouteLine.setStyle({ color: '#27ae60', weight: 3, opacity: 0.5 });
+        currentRouteLine.setStyle({ color: '#27ae60', weight: 5, opacity: 0.8 });
         pastRouteLines.push(currentRouteLine);
         currentRouteLine = null;
     }
@@ -310,7 +310,7 @@ async function loadRoutes() {
     routes.forEach(r => {
         if (r.coordinates && r.coordinates.length > 1) {
             const latlngs = r.coordinates.map(p => [p.lat, p.lng]);
-            const line = L.polyline(latlngs, { color: '#27ae60', weight: 3, opacity: 0.4 }).addTo(map);
+            const line = L.polyline(latlngs, { color: '#27ae60', weight: 5, opacity: 0.8 }).addTo(map);
             pastRouteLines.push(line);
             r.coordinates.forEach(p => markCellVisited(p.lat, p.lng, true));
         }
@@ -335,13 +335,6 @@ function markCellVisited(lat, lng, skipSave) {
     const id = getCellId(lat, lng);
     if (!visitedCells[id]) {
         visitedCells[id] = { count: 0, lastVisited: null, user: userName };
-        // Draw grid overlay
-        const bounds = getCellBounds(id);
-        const rect = L.rectangle(bounds, {
-            color: '#27ae60', weight: 0.5, opacity: 0.3,
-            fillColor: '#27ae60', fillOpacity: 0.12
-        }).addTo(map);
-        gridOverlays.push(rect);
     }
     visitedCells[id].count++;
     visitedCells[id].lastVisited = Date.now();
@@ -361,12 +354,6 @@ async function loadVisitedCells() {
             snap.docs.forEach(d => {
                 const id = d.id;
                 visitedCells[id] = d.data();
-                const bounds = getCellBounds(id);
-                const rect = L.rectangle(bounds, {
-                    color: '#27ae60', weight: 0.5, opacity: 0.3,
-                    fillColor: '#27ae60', fillOpacity: 0.12
-                }).addTo(map);
-                gridOverlays.push(rect);
             });
         } catch (e) { console.error(e); }
     }
@@ -375,12 +362,6 @@ async function loadVisitedCells() {
     Object.keys(local).forEach(id => {
         if (!visitedCells[id]) {
             visitedCells[id] = local[id];
-            const bounds = getCellBounds(id);
-            const rect = L.rectangle(bounds, {
-                color: '#27ae60', weight: 0.5, opacity: 0.3,
-                fillColor: '#27ae60', fillOpacity: 0.12
-            }).addTo(map);
-            gridOverlays.push(rect);
         }
     });
     updateGlobalStats();
@@ -427,25 +408,42 @@ async function generateRoute(lengthKm) {
         candidates.sort((a, b) => a.dist - b.dist);
         const waypoints = selectWaypoints(currentPosition, candidates, lengthKm);
 
-        // Get route from OSRM
-        const coords = [currentPosition, ...waypoints, currentPosition];
+        // Get route from OSRM using Trip API for optimal ordering (TSP)
+        const coords = [currentPosition, ...waypoints];
         const coordStr = coords.map(p => `${p.lng},${p.lat}`).join(';');
-        const url = `https://router.project-osrm.org/route/v1/foot/${coordStr}?overview=full&geometries=geojson`;
+        const url = `https://router.project-osrm.org/trip/v1/foot/${coordStr}?source=first&roundtrip=true&overview=full&geometries=geojson`;
 
         const resp = await fetch(url);
         const data = await resp.json();
 
-        if (data.routes && data.routes[0]) {
+        if (data.trips && data.trips[0]) {
             if (suggestedRouteLine) map.removeLayer(suggestedRouteLine);
-            const geojson = data.routes[0].geometry;
+            const geojson = data.trips[0].geometry;
             suggestedRouteLine = L.geoJSON(geojson, {
                 style: { color: '#3498db', weight: 5, opacity: 0.8, dashArray: '10 8' }
             }).addTo(map);
             map.fitBounds(suggestedRouteLine.getBounds(), { padding: [40, 40] });
 
-            const dist = (data.routes[0].distance / 1000).toFixed(1);
-            const time = Math.round(data.routes[0].duration / 60);
-            alert(`Route: ${dist} km, ±${time} minuten lopen`);
+            const dist = (data.trips[0].distance / 1000).toFixed(1);
+            const time = Math.round(data.trips[0].duration / 60);
+            
+            // Build Google Maps Link
+            const optimalWaypoints = [];
+            if (data.waypoints) {
+                data.waypoints.forEach((wp, i) => {
+                    optimalWaypoints[wp.waypoint_index] = coords[i];
+                });
+            } else {
+                optimalWaypoints.push(...coords);
+            }
+            
+            const waypointsForGoogle = optimalWaypoints.slice(1).map(w => `${w.lat},${w.lng}`).join('|');
+            currentNavUrl = `https://www.google.com/maps/dir/?api=1&origin=${currentPosition.lat},${currentPosition.lng}&destination=${currentPosition.lat},${currentPosition.lng}&waypoints=${waypointsForGoogle}&travelmode=walking`;
+            
+            const navCont = document.getElementById('navContainer');
+            if (navCont) navCont.style.display = 'block';
+
+            alert(`Logische route gevonden: ${dist} km, ±${time} minuten lopen`);
         } else {
             alert('Kon geen route berekenen. Probeer opnieuw.');
         }
@@ -523,6 +521,15 @@ function changeUser() {
 
 function clearSuggestedRoute() {
     if (suggestedRouteLine) { map.removeLayer(suggestedRouteLine); suggestedRouteLine = null; }
+    const navCont = document.getElementById('navContainer');
+    if (navCont) navCont.style.display = 'none';
+    currentNavUrl = null;
+}
+
+function openNavigation() {
+    if (currentNavUrl) {
+        window.open(currentNavUrl, '_blank');
+    }
 }
 
 // ===== INIT =====
