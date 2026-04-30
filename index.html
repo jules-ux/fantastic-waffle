@@ -42,10 +42,33 @@
                     <input type="text" id="naam" placeholder="Naam klant" required>
 
                     <label for="email">E-mailadres</label>
-                    <input type="email" id="email" placeholder="E-mailadres" required>
+                    <input type="email" id="email" placeholder="E-mailadres">
+
+                    <label for="telefoon">Telefoonnummer (indien geen e-mail)</label>
+                    <input type="tel" id="telefoon" placeholder="Telefoonnummer">
 
                     <label for="adres">Adres</label>
                     <input type="text" id="adres" placeholder="Straat, huisnummer, postcode">
+
+                    <label for="betaalstatus">Betaling</label>
+                    <select id="betaalstatus" onchange="toggleBetaalOpties()">
+                        <option value="">-- Kies betaling --</option>
+                        <option value="betaald">Reeds betaald</option>
+                        <option value="niet_betaald">Niet betaald</option>
+                    </select>
+
+                    <div id="betaald_opties" style="display: none;">
+                        <label for="betaalmethode">Betaalmethode</label>
+                        <select id="betaalmethode">
+                            <option value="cash">Cash</option>
+                            <option value="kaart">Kaart / Payconiq</option>
+                        </select>
+                    </div>
+
+                    <div id="niet_betaald_opties" style="display: none;">
+                        <label for="notitie">Notitie (bv. later betalen bij ophalen)</label>
+                        <textarea id="notitie" placeholder="Notitie over de betaling..." rows="2"></textarea>
+                    </div>
                 </div>
 
                 <button class="primary" id="saveBtn" onclick="stuurData()">Bestelling opslaan</button>

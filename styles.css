@@ -141,12 +141,13 @@ body {
 
 .inputs { display: grid; gap: 14px; margin-bottom: 10px; }
 .inputs label { font-size: 0.9rem; color: #6b4d3d; font-weight: 600; }
-.inputs input {
+.inputs input, .inputs select, .inputs textarea {
     width: 100%; padding: 14px 16px; border-radius: 16px;
     border: 1px solid #e2cab3; background: #fff8f2;
     font-size: 1rem; color: #4d372e; outline: none;
+    font-family: inherit;
 }
-.inputs input:focus { border-color: #d98a49; box-shadow: 0 0 0 4px rgba(230, 126, 34, 0.12); }
+.inputs input:focus, .inputs select:focus, .inputs textarea:focus { border-color: #d98a49; box-shadow: 0 0 0 4px rgba(230, 126, 34, 0.12); }
 
 button.primary {
     width: 100%; border: none; border-radius: 18px; padding: 16px;

@@ -1,5 +1,5 @@
 // ===== CONFIGURATIE =====
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyVTNetR-qmK4I_1MQqxNYa9BAHKhjfxGGUDI9kzI4x5BhtD_Yx9rugsqAv_lFTpx0/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzLfS2vpTe5RHBDqKIQk1P5qMUmcPHZWZ1ZajBv1OoJ5qYLYsTDAiT2NKlen9La_ZjO/exec';
 
 // Firebase configuratie - VERVANG met jouw eigen project!
 // Ga naar https://console.firebase.google.com om een project aan te maken
@@ -111,7 +111,7 @@ function updateTotal() {
     totalEl.innerText = formatCurrency(total);
 }
 
-function startLongPress(e) { 
+function startLongPress(e) {
     if (e.type === 'touchstart') window.isTouch = true;
     if (e.type === 'mousedown' && window.isTouch) return;
 
@@ -121,12 +121,12 @@ function startLongPress(e) {
         isLongPress = true;
         openMenu(id);
         if (navigator.vibrate) navigator.vibrate(50);
-    }, 500); 
+    }, 500);
 }
 
-function cancelLongPress(e) { 
+function cancelLongPress(e) {
     if (e && e.type === 'mouseup' && window.isTouch) return;
-    clearTimeout(longPressTimer); 
+    clearTimeout(longPressTimer);
 }
 
 function openMenu(id) {
@@ -160,21 +160,49 @@ function clearItem() {
     updateItem(activeItem.id); updateTotal(); closeMenu();
 }
 
+function toggleBetaalOpties() {
+    const status = document.getElementById('betaalstatus').value;
+    document.getElementById('betaald_opties').style.display = status === 'betaald' ? 'block' : 'none';
+    document.getElementById('niet_betaald_opties').style.display = status === 'niet_betaald' ? 'block' : 'none';
+}
+
 function stuurData() {
     const btn = document.getElementById('saveBtn');
     const msg = document.getElementById('msg');
-    if (!document.getElementById('naam').value || !document.getElementById('email').value) {
-        alert("Vul aub naam en e-mail in."); return;
+
+    const naam = document.getElementById('naam').value;
+    const email = document.getElementById('email').value;
+    const telefoon = document.getElementById('telefoon').value;
+
+    if (!naam || (!email && !telefoon)) {
+        alert("Vul aub naam en e-mail (of telefoonnummer) in."); return;
     }
+
+    const status = document.getElementById('betaalstatus').value;
+    let betaalmethode = '';
+    let notitie = '';
+
+    if (status === 'betaald') {
+        betaalmethode = document.getElementById('betaalmethode').value;
+    } else if (status === 'niet_betaald') {
+        notitie = document.getElementById('notitie').value;
+    }
+
     btn.disabled = true;
     msg.innerText = '⏳ Bezig met opslaan...';
+
     const payload = {
-        naam: document.getElementById('naam').value,
-        email: document.getElementById('email').value,
+        naam: naam,
+        email: email,
+        telefoon: telefoon,
         adres: document.getElementById('adres').value,
+        betaalstatus: status,
+        betaalmethode: betaalmethode,
+        notitie: notitie,
         vanille: order['v'] || 0, suikervrij: order['s'] || 0,
         mix: order['m'] || 0, choco: order['c'] || 0, frangipane: order['f'] || 0
     };
+
     fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
         .then(() => { msg.innerText = '✅ Gelukt!'; resetOrder(); btn.disabled = false; })
         .catch(err => { console.error(err); msg.innerText = '❌ Fout!'; btn.disabled = false; });
@@ -184,7 +212,12 @@ function resetOrder() {
     items.forEach(i => { order[i.id] = 0; updateItem(i.id); });
     document.getElementById('naam').value = '';
     document.getElementById('email').value = '';
+    document.getElementById('telefoon').value = '';
     document.getElementById('adres').value = '';
+    document.getElementById('betaalstatus').value = '';
+    document.getElementById('betaalmethode').value = 'cash';
+    document.getElementById('notitie').value = '';
+    toggleBetaalOpties();
     updateTotal();
 }
 
@@ -447,7 +480,7 @@ async function generateRoute(lengthKm) {
 
             const dist = (data.trips[0].distance / 1000).toFixed(1);
             const time = Math.round(data.trips[0].duration / 60);
-            
+
             // Build Google Maps Link
             const optimalWaypoints = [];
             if (data.waypoints) {
@@ -457,10 +490,10 @@ async function generateRoute(lengthKm) {
             } else {
                 optimalWaypoints.push(...coords);
             }
-            
+
             const waypointsForGoogle = optimalWaypoints.slice(1).map(w => `${w.lat},${w.lng}`).join('|');
             currentNavUrl = `https://www.google.com/maps/dir/?api=1&origin=${currentPosition.lat},${currentPosition.lng}&destination=${currentPosition.lat},${currentPosition.lng}&waypoints=${waypointsForGoogle}&travelmode=walking`;
-            
+
             const navCont = document.getElementById('navContainer');
             if (navCont) navCont.style.display = 'block';
 
@@ -554,14 +587,14 @@ async function generateRoutesInRadius() {
 
         const routePromises = [];
         const targetLengths = [2, 5, Math.max(8, radiusKm * 1.5)];
-        
+
         candidates.sort((a, b) => a.dist - b.dist);
 
         for (let i = 0; i < targetLengths.length; i++) {
             const tLen = targetLengths[i];
             const shuffled = [...candidates].sort(() => 0.5 - Math.random());
             const wps = selectWaypoints(currentPosition, shuffled, tLen);
-            
+
             if (wps.length > 0) {
                 const coords = [currentPosition, ...wps];
                 const coordStr = coords.map(p => `${p.lng},${p.lat}`).join(';');
@@ -582,13 +615,13 @@ async function generateRoutesInRadius() {
         const uniqueRoutes = [];
         const dists = new Set();
         generatedRouteOptions.forEach(r => {
-            const d = Math.round(r.trips[0].distance / 100); 
+            const d = Math.round(r.trips[0].distance / 100);
             if (!dists.has(d)) {
                 dists.add(d);
                 uniqueRoutes.push(r);
             }
         });
-        
+
         uniqueRoutes.sort((a, b) => a.trips[0].distance - b.trips[0].distance);
         generatedRouteOptions = uniqueRoutes;
 
@@ -610,14 +643,14 @@ async function generateRoutesInRadius() {
 function renderRouteList() {
     const listContainer = document.getElementById('routeListContainer');
     listContainer.innerHTML = '';
-    
+
     generatedRouteOptions.forEach((data, index) => {
         const dist = (data.trips[0].distance / 1000).toFixed(1);
         const time = Math.round(data.trips[0].duration / 60);
-        
+
         const item = document.createElement('div');
         item.className = 'route-list-item';
-        
+
         let label = "Kort";
         if (dist > 3.5 && dist <= 7) label = "Middel";
         else if (dist > 7) label = "Lang";
@@ -629,7 +662,7 @@ function renderRouteList() {
             </div>
             <button style="padding: 8px 16px; border-radius: 8px; background: var(--secondary); color: white; border: none; font-weight: bold; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='var(--primary)'" onmouseout="this.style.background='var(--secondary)'">Toon</button>
         `;
-        
+
         item.onclick = () => showSelectedRoute(data);
         listContainer.appendChild(item);
     });
@@ -645,7 +678,7 @@ function showSelectedRoute(data) {
 
     const wpsForGoogle = data.waypoints.slice(1).map(w => `${w.location[1]},${w.location[0]}`).join('|');
     currentNavUrl = `https://www.google.com/maps/dir/?api=1&origin=${currentPosition.lat},${currentPosition.lng}&destination=${currentPosition.lat},${currentPosition.lng}&waypoints=${wpsForGoogle}&travelmode=walking`;
-    
+
     const navCont = document.getElementById('navContainer');
     if (navCont) navCont.style.display = 'block';
 }
