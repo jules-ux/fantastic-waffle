@@ -28,6 +28,7 @@ const items = [
 
 const order = items.reduce((acc, item) => ({ ...acc, [item.id]: 0 }), {});
 let longPressTimer = null;
+let isLongPress = false;
 let activeItem = null;
 
 // Rondhaling state
@@ -88,12 +89,16 @@ function renderItems() {
             <div class="item-price">€${item.price.toFixed(2).replace('.', ',')}</div>
             <div class="item-count" id="count-${item.id}">${order[item.id]}</div>
         `;
-        button.addEventListener('click', () => incrementItem(item.id));
+        button.addEventListener('click', (e) => {
+            if (isLongPress) return;
+            incrementItem(item.id);
+        });
         button.addEventListener('mousedown', startLongPress);
         button.addEventListener('touchstart', startLongPress, { passive: true });
         button.addEventListener('mouseup', cancelLongPress);
         button.addEventListener('mouseleave', cancelLongPress);
         button.addEventListener('touchend', cancelLongPress);
+        button.addEventListener('touchmove', cancelLongPress, { passive: true });
         button.addEventListener('contextmenu', e => { e.preventDefault(); openMenu(item.id); });
         itemGrid.appendChild(button);
     });
@@ -106,8 +111,23 @@ function updateTotal() {
     totalEl.innerText = formatCurrency(total);
 }
 
-function startLongPress(e) { longPressTimer = setTimeout(() => openMenu(e.currentTarget.dataset.id), 500); }
-function cancelLongPress() { clearTimeout(longPressTimer); }
+function startLongPress(e) { 
+    if (e.type === 'touchstart') window.isTouch = true;
+    if (e.type === 'mousedown' && window.isTouch) return;
+
+    isLongPress = false;
+    const id = e.currentTarget.dataset.id;
+    longPressTimer = setTimeout(() => {
+        isLongPress = true;
+        openMenu(id);
+        if (navigator.vibrate) navigator.vibrate(50);
+    }, 500); 
+}
+
+function cancelLongPress(e) { 
+    if (e && e.type === 'mouseup' && window.isTouch) return;
+    clearTimeout(longPressTimer); 
+}
 
 function openMenu(id) {
     activeItem = items.find(i => i.id === id);
