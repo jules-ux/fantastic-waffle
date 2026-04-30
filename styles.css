@@ -250,6 +250,20 @@ button.primary:disabled { opacity: 0.65; cursor: not-allowed; }
 .rh-route-btn:hover { border-color: var(--secondary); }
 .rh-route-btn.active { background: var(--secondary); color: white; border-color: var(--secondary); }
 
+.route-list-item {
+    padding: 12px;
+    border-bottom: 1px solid #e2cab3;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background 0.2s;
+    border-radius: 8px;
+    color: var(--text);
+}
+.route-list-item:last-child { border-bottom: none; }
+.route-list-item:hover { background: #fff0e1; }
+
 .rh-stats {
     display: grid; grid-template-columns: repeat(3, 1fr);
     gap: 10px; margin-top: 12px;

@@ -96,7 +96,24 @@
             </div>
 
             <div id="navContainer" style="display:none; margin-top: 15px;">
-                <button style="width: 100%; padding: 15px; border-radius: 12px; background: #3498db; color: white; border: none; font-weight: bold; font-size: 1.1rem; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);" onclick="openNavigation()">🧭 Navigeer met Google Maps</button>
+                <button
+                    style="width: 100%; padding: 15px; border-radius: 12px; background: #3498db; color: white; border: none; font-weight: bold; font-size: 1.1rem; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"
+                    onclick="openNavigation()">🧭 Navigeer met Google Maps</button>
+            </div>
+
+            <div class="rh-area-routing"
+                style="margin-top: 15px; border-top: 1px solid rgba(0,0,0,0.06); padding-top: 15px;">
+                <h3 style="margin: 0 0 10px; font-size: 1.1rem; color: var(--primary);">Gebiedsverkenning</h3>
+                <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+                    <input type="number" id="areaRadius" placeholder="Straal (km)"
+                        style="width: 120px; padding: 10px; border-radius: 12px; border: 1px solid #e2cab3; font-size: 1rem; background: #fff8f2;"
+                        value="3">
+                    <button class="rh-start-btn start" style="padding: 10px; font-size: 1rem; flex: 1;"
+                        onclick="generateRoutesInRadius()" id="btnAreaRoutes">Vind Routes</button>
+                </div>
+                <div id="routeListContainer"
+                    style="display: none; max-height: 220px; overflow-y: auto; background: #fff; border-radius: 12px; border: 1px solid #e2cab3; padding: 5px;">
+                </div>
             </div>
 
             <div class="rh-stats">

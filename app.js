@@ -40,6 +40,7 @@ let currentRouteLine = null;
 let pastRouteLines = [];
 let suggestedRouteLine = null;
 let currentNavUrl = null;
+let generatedRouteOptions = [];
 let visitedCells = {};
 let currentPosition = null;
 let trackingStartTime = null;
@@ -482,6 +483,151 @@ function selectWaypoints(start, candidates, targetKm) {
         current = best;
     }
     return waypoints;
+}
+
+// ===== GEBIEDSVERKENNING =====
+async function generateRoutesInRadius() {
+    if (!currentPosition) {
+        alert('Wacht op GPS-positie...');
+        navigator.geolocation.getCurrentPosition(
+            pos => { onGpsUpdate(pos.coords.latitude, pos.coords.longitude); generateRoutesInRadius(); },
+            () => alert('GPS niet beschikbaar')
+        );
+        return;
+    }
+
+    const radiusInput = document.getElementById('areaRadius').value;
+    const radiusKm = parseFloat(radiusInput);
+    if (isNaN(radiusKm) || radiusKm <= 0) {
+        alert('Voer een geldige straal in.');
+        return;
+    }
+
+    const btn = document.getElementById('btnAreaRoutes');
+    btn.innerHTML = '<span class="loading-spinner"></span>...';
+    btn.disabled = true;
+    const listContainer = document.getElementById('routeListContainer');
+    listContainer.innerHTML = '<div style="padding:10px; text-align:center;">Routes berekenen...</div>';
+    listContainer.style.display = 'block';
+
+    try {
+        const radiusDeg = (radiusKm / 111);
+        const candidates = [];
+        const { lat, lng } = currentPosition;
+
+        for (let dLat = -radiusDeg; dLat <= radiusDeg; dLat += GRID_SIZE_LAT) {
+            for (let dLng = -radiusDeg; dLng <= radiusDeg; dLng += GRID_SIZE_LNG) {
+                const cLat = lat + dLat;
+                const cLng = lng + dLng;
+                const id = getCellId(cLat, cLng);
+                const dist = haversine(lat, lng, cLat, cLng);
+                if (!visitedCells[id] && dist <= radiusKm * 1000) {
+                    candidates.push({ lat: cLat, lng: cLng, dist: dist });
+                }
+            }
+        }
+
+        if (candidates.length === 0) {
+            listContainer.innerHTML = '<div style="padding:10px; text-align:center;">Geen onbezochte gebieden in deze straal.</div>';
+            return;
+        }
+
+        const routePromises = [];
+        const targetLengths = [2, 5, Math.max(8, radiusKm * 1.5)];
+        
+        candidates.sort((a, b) => a.dist - b.dist);
+
+        for (let i = 0; i < targetLengths.length; i++) {
+            const tLen = targetLengths[i];
+            const shuffled = [...candidates].sort(() => 0.5 - Math.random());
+            const wps = selectWaypoints(currentPosition, shuffled, tLen);
+            
+            if (wps.length > 0) {
+                const coords = [currentPosition, ...wps];
+                const coordStr = coords.map(p => `${p.lng},${p.lat}`).join(';');
+                const url = `https://router.project-osrm.org/trip/v1/foot/${coordStr}?source=first&roundtrip=true&overview=full&geometries=geojson`;
+                routePromises.push(fetch(url).then(r => r.json()).catch(() => null));
+            }
+        }
+
+        const results = await Promise.all(routePromises);
+        generatedRouteOptions = [];
+
+        results.forEach(data => {
+            if (data && data.trips && data.trips[0]) {
+                generatedRouteOptions.push(data);
+            }
+        });
+
+        const uniqueRoutes = [];
+        const dists = new Set();
+        generatedRouteOptions.forEach(r => {
+            const d = Math.round(r.trips[0].distance / 100); 
+            if (!dists.has(d)) {
+                dists.add(d);
+                uniqueRoutes.push(r);
+            }
+        });
+        
+        uniqueRoutes.sort((a, b) => a.trips[0].distance - b.trips[0].distance);
+        generatedRouteOptions = uniqueRoutes;
+
+        if (generatedRouteOptions.length > 0) {
+            renderRouteList();
+        } else {
+            listContainer.innerHTML = '<div style="padding:10px; text-align:center;">Kon geen routes berekenen.</div>';
+        }
+
+    } catch (e) {
+        console.error(e);
+        listContainer.innerHTML = '<div style="padding:10px; text-align:center; color:red;">Fout bij berekenen.</div>';
+    } finally {
+        btn.innerHTML = 'Vind Routes';
+        btn.disabled = false;
+    }
+}
+
+function renderRouteList() {
+    const listContainer = document.getElementById('routeListContainer');
+    listContainer.innerHTML = '';
+    
+    generatedRouteOptions.forEach((data, index) => {
+        const dist = (data.trips[0].distance / 1000).toFixed(1);
+        const time = Math.round(data.trips[0].duration / 60);
+        
+        const item = document.createElement('div');
+        item.className = 'route-list-item';
+        
+        let label = "Kort";
+        if (dist > 3.5 && dist <= 7) label = "Middel";
+        else if (dist > 7) label = "Lang";
+
+        item.innerHTML = `
+            <div>
+                <strong style="color: var(--primary);">Route ${index + 1} (${label})</strong><br>
+                <small style="color: var(--text-light);">${dist} km • ±${time} min lopen</small>
+            </div>
+            <button style="padding: 8px 16px; border-radius: 8px; background: var(--secondary); color: white; border: none; font-weight: bold; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='var(--primary)'" onmouseout="this.style.background='var(--secondary)'">Toon</button>
+        `;
+        
+        item.onclick = () => showSelectedRoute(data);
+        listContainer.appendChild(item);
+    });
+}
+
+function showSelectedRoute(data) {
+    if (suggestedRouteLine) map.removeLayer(suggestedRouteLine);
+    const geojson = data.trips[0].geometry;
+    suggestedRouteLine = L.geoJSON(geojson, {
+        style: { color: '#3498db', weight: 5, opacity: 0.8, dashArray: '10 8' }
+    }).addTo(map);
+    map.fitBounds(suggestedRouteLine.getBounds(), { padding: [40, 40] });
+
+    const wpsForGoogle = data.waypoints.slice(1).map(w => `${w.location[1]},${w.location[0]}`).join('|');
+    currentNavUrl = `https://www.google.com/maps/dir/?api=1&origin=${currentPosition.lat},${currentPosition.lng}&destination=${currentPosition.lat},${currentPosition.lng}&waypoints=${wpsForGoogle}&travelmode=walking`;
+    
+    const navCont = document.getElementById('navContainer');
+    if (navCont) navCont.style.display = 'block';
 }
 
 // ===== STATISTIEKEN =====
