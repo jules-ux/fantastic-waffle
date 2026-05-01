@@ -59,16 +59,17 @@
 
                     <div id="betaald_opties" style="display: none;">
                         <label for="betaalmethode">Betaalmethode</label>
-                        <select id="betaalmethode">
+                        <select id="betaalmethode" onchange="toggleQrBtn()">
                             <option value="cash">Cash</option>
                             <option value="kaart">Kaart / Payconiq</option>
                         </select>
+                        <button type="button" id="btnQr" onclick="openQr()"
+                            style="margin-top: 10px; display: none; width: 100%; padding: 12px; border-radius: 14px; background: #e02b6e; color: white; border: none; font-weight: bold; cursor: pointer; transition: background 0.2s;">📱
+                            Toon Payconiq QR</button>
                     </div>
 
-                    <div id="niet_betaald_opties" style="display: none;">
-                        <label for="notitie">Notitie (bv. later betalen bij ophalen)</label>
-                        <textarea id="notitie" placeholder="Notitie over de betaling..." rows="2"></textarea>
-                    </div>
+                    <label for="notitie">Notitie (optioneel)</label>
+                    <textarea id="notitie" placeholder="Notitie of bijzonderheden..." rows="2"></textarea>
                 </div>
 
                 <button class="primary" id="saveBtn" onclick="stuurData()">Bestelling opslaan</button>
@@ -178,6 +179,21 @@
                 <button type="button" onclick="applyManualCount()">Toepassen</button>
                 <button type="button" onclick="clearItem()">Alles leeg</button>
             </div>
+        </div>
+    </div>
+
+    <!-- QR OVERLAY -->
+    <div class="menu-overlay" id="qrOverlay">
+        <div class="menu" role="dialog" aria-modal="true" style="text-align: center;">
+            <button class="menu-close" onclick="closeQr()" aria-label="Sluit">×</button>
+            <h3 style="color: #e02b6e; margin-top: 0;">Payconiq</h3>
+            <p style="margin-top: 0; margin-bottom: 15px; color: var(--text-light); font-size: 0.9rem;">Laat de klant
+                deze QR-code scannen om te betalen.</p>
+            <img src="qr.png" alt="Payconiq QR Code"
+                style="width: 100%; max-width: 250px; height: auto; border-radius: 12px; border: 1px solid var(--border);">
+            <button type="button"
+                style="margin-top: 20px; width: 100%; padding: 14px; border-radius: 16px; background: #e02b6e; color: white; border: none; font-weight: bold; cursor: pointer;"
+                onclick="closeQr()">Klaar met betalen</button>
         </div>
     </div>
 
