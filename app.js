@@ -248,9 +248,9 @@ function switchTab(tabId) {
 
 // ===== TRACKING STATE & COLORS =====
 const userColors = [
-    '#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231', 
-    '#911eb4', '#42d4f4', '#f032e6', '#bfef45', '#fabed4', 
-    '#469990', '#dcbeff', '#9A6324', '#fffac8', '#800000', 
+    '#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231',
+    '#911eb4', '#42d4f4', '#f032e6', '#bfef45', '#fabed4',
+    '#469990', '#dcbeff', '#9A6324', '#fffac8', '#800000',
     '#aaffc3', '#808000', '#ffd8b1', '#000075', '#a9a9a9'
 ];
 
@@ -277,7 +277,7 @@ function initTrackingState() {
             currentRoute = state.currentRoute || [];
             trackingDistance = state.trackingDistance || 0;
             trackingStartTime = state.trackingStartTime || Date.now();
-            
+
             if (currentRoute.length > 0 && map) {
                 const latlngs = currentRoute.map(p => [p.lat, p.lng]);
                 currentRouteLine = L.polyline(latlngs, { color: getUserColor(userName), weight: 6, opacity: 1.0 }).addTo(map);
@@ -303,9 +303,9 @@ function initMap() {
             async pos => {
                 const lat = pos.coords.latitude;
                 const lng = pos.coords.longitude;
-                currentPosition = { lat, lng };
+                currentPosition = { lat, lng, t: Date.now() };
                 map.setView([lat, lng], 14);
-                
+
                 if (!gpsMarker) {
                     const icon = L.divIcon({ className: 'gps-marker', iconSize: [18, 18], iconAnchor: [9, 9] });
                     gpsMarker = L.marker([lat, lng], { icon, zIndexOffset: 1000 }).addTo(map);
@@ -343,16 +343,16 @@ function startTracking(resume = false) {
         localStorage.setItem('afrikaWafelUser', userName);
         updateUserDisplay();
     }
-    
+
     isTracking = true;
-    
+
     if (!resume) {
         currentRoute = [];
         trackingDistance = 0;
         trackingStartTime = Date.now();
         saveTrackingState();
     }
-    
+
     const btn = document.getElementById('trackBtn');
     btn.className = 'rh-start-btn stop';
     btn.innerHTML = '⏹ Stop Rondhaling';
@@ -380,7 +380,26 @@ function stopTracking() {
 }
 
 function onGpsUpdate(lat, lng) {
-    currentPosition = { lat, lng };
+    const now = Date.now();
+
+    // Uitschieter (GPS glitch) filter
+    if (currentPosition && currentPosition.t) {
+        const dist = haversine(currentPosition.lat, currentPosition.lng, lat, lng);
+        const timeDiff = (now - currentPosition.t) / 1000; // in seconden
+
+        if (timeDiff > 0) {
+            const speed = dist / timeDiff; // m/s
+            // Als snelheid > 25 m/s (90 km/u) en afstand > 20m, negeer (waarschijnlijk GPS glitch)
+            if (speed > 25 && dist > 20) {
+                console.warn(`GPS outlier genegeerd: ${dist.toFixed(1)}m in ${timeDiff.toFixed(1)}s (${speed.toFixed(1)}m/s)`);
+                return;
+            }
+        } else if (dist > 20) {
+            return; // onmogelijke sprong in 0 seconden
+        }
+    }
+
+    currentPosition = { lat, lng, t: now };
 
     // Update marker
     if (!gpsMarker) {
@@ -394,7 +413,7 @@ function onGpsUpdate(lat, lng) {
     if (isTracking) {
         const prev = currentRoute[currentRoute.length - 1];
         if (prev) trackingDistance += haversine(prev.lat, prev.lng, lat, lng);
-        currentRoute.push({ lat, lng, t: Date.now() });
+        currentRoute.push({ lat, lng, t: now });
 
         // Update route line
         const latlngs = currentRoute.map(p => [p.lat, p.lng]);
