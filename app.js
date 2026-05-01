@@ -15,7 +15,7 @@ const firebaseConfig = {
 
 const GRID_SIZE_LAT = 0.00135; // ~150m
 const GRID_SIZE_LNG = 0.00214; // ~150m at 51°N
-const DEFAULT_CENTER = [50.85, 4.35]; // België
+const DEFAULT_CENTER = [51.2678, 4.7077]; // Zoersel 2980
 
 // ===== STATE =====
 const items = [
@@ -163,7 +163,23 @@ function clearItem() {
 function toggleBetaalOpties() {
     const status = document.getElementById('betaalstatus').value;
     document.getElementById('betaald_opties').style.display = status === 'betaald' ? 'block' : 'none';
-    document.getElementById('niet_betaald_opties').style.display = status === 'niet_betaald' ? 'block' : 'none';
+    toggleQrBtn();
+}
+
+function toggleQrBtn() {
+    const methode = document.getElementById('betaalmethode').value;
+    const btn = document.getElementById('btnQr');
+    if (btn) {
+        btn.style.display = methode === 'kaart' ? 'block' : 'none';
+    }
+}
+
+function openQr() {
+    document.getElementById('qrOverlay').classList.add('open');
+}
+
+function closeQr() {
+    document.getElementById('qrOverlay').classList.remove('open');
 }
 
 function stuurData() {
@@ -180,12 +196,10 @@ function stuurData() {
 
     const status = document.getElementById('betaalstatus').value;
     let betaalmethode = '';
-    let notitie = '';
+    let notitie = document.getElementById('notitie').value;
 
     if (status === 'betaald') {
         betaalmethode = document.getElementById('betaalmethode').value;
-    } else if (status === 'niet_betaald') {
-        notitie = document.getElementById('notitie').value;
     }
 
     btn.disabled = true;
@@ -232,6 +246,50 @@ function switchTab(tabId) {
     }
 }
 
+// ===== TRACKING STATE & COLORS =====
+const userColors = [
+    '#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231', 
+    '#911eb4', '#42d4f4', '#f032e6', '#bfef45', '#fabed4', 
+    '#469990', '#dcbeff', '#9A6324', '#fffac8', '#800000', 
+    '#aaffc3', '#808000', '#ffd8b1', '#000075', '#a9a9a9'
+];
+
+function getUserColor(name) {
+    if (!name) return '#27ae60';
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+        hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return userColors[Math.abs(hash) % userColors.length];
+}
+
+function saveTrackingState() {
+    localStorage.setItem('awTrackingState', JSON.stringify({
+        isTracking, currentRoute, trackingDistance, trackingStartTime
+    }));
+}
+
+function initTrackingState() {
+    try {
+        const state = JSON.parse(localStorage.getItem('awTrackingState') || '{}');
+        if (state.isTracking) {
+            isTracking = true;
+            currentRoute = state.currentRoute || [];
+            trackingDistance = state.trackingDistance || 0;
+            trackingStartTime = state.trackingStartTime || Date.now();
+            
+            if (currentRoute.length > 0 && map) {
+                const latlngs = currentRoute.map(p => [p.lat, p.lng]);
+                currentRouteLine = L.polyline(latlngs, { color: getUserColor(userName), weight: 6, opacity: 1.0 }).addTo(map);
+                const lastPos = latlngs[latlngs.length - 1];
+                map.panTo(lastPos);
+                currentPosition = { lat: lastPos[0], lng: lastPos[1] };
+            }
+            startTracking(true);
+        }
+    } catch (e) { console.error("Error resuming tracking state", e); }
+}
+
 // ===== KAART =====
 function initMap() {
     map = L.map('map', { zoomControl: false }).setView(DEFAULT_CENTER, 14);
@@ -239,8 +297,37 @@ function initMap() {
         attribution: '© OpenStreetMap', maxZoom: 19
     }).addTo(map);
     L.control.zoom({ position: 'topright' }).addTo(map);
-    loadRoutes();
-    loadVisitedCells();
+
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            async pos => {
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+                currentPosition = { lat, lng };
+                map.setView([lat, lng], 14);
+                
+                if (!gpsMarker) {
+                    const icon = L.divIcon({ className: 'gps-marker', iconSize: [18, 18], iconAnchor: [9, 9] });
+                    gpsMarker = L.marker([lat, lng], { icon, zIndexOffset: 1000 }).addTo(map);
+                } else {
+                    gpsMarker.setLatLng([lat, lng]);
+                }
+
+                await loadVisitedCells();
+                await loadRoutes(lat, lng, 4); // 4 km radius
+                initTrackingState();
+            },
+            async err => {
+                console.warn('GPS error on init:', err);
+                await loadVisitedCells();
+                await loadRoutes();
+                initTrackingState();
+            },
+            { enableHighAccuracy: true, timeout: 5000 }
+        );
+    } else {
+        loadVisitedCells().then(() => loadRoutes()).then(() => initTrackingState());
+    }
 }
 
 // ===== GPS TRACKING =====
@@ -249,21 +336,28 @@ function toggleTracking() {
     else startTracking();
 }
 
-function startTracking() {
+function startTracking(resume = false) {
     if (!navigator.geolocation) { alert('GPS niet beschikbaar'); return; }
     if (!userName) {
         userName = prompt('Wat is je naam?', '') || 'Onbekend';
         localStorage.setItem('afrikaWafelUser', userName);
         updateUserDisplay();
     }
+    
     isTracking = true;
-    currentRoute = [];
-    trackingDistance = 0;
-    trackingStartTime = Date.now();
+    
+    if (!resume) {
+        currentRoute = [];
+        trackingDistance = 0;
+        trackingStartTime = Date.now();
+        saveTrackingState();
+    }
+    
     const btn = document.getElementById('trackBtn');
     btn.className = 'rh-start-btn stop';
     btn.innerHTML = '⏹ Stop Rondhaling';
     document.getElementById('trackingInfo').style.display = 'flex';
+    updateTrackingStats();
 
     gpsWatchId = navigator.geolocation.watchPosition(
         pos => onGpsUpdate(pos.coords.latitude, pos.coords.longitude),
@@ -281,6 +375,7 @@ function stopTracking() {
     btn.innerHTML = '▶ Start Rondhaling';
 
     if (currentRoute.length > 1) saveCurrentRoute();
+    else { currentRoute = []; saveTrackingState(); }
     document.getElementById('trackingInfo').style.display = 'none';
 }
 
@@ -304,11 +399,12 @@ function onGpsUpdate(lat, lng) {
         // Update route line
         const latlngs = currentRoute.map(p => [p.lat, p.lng]);
         if (currentRouteLine) currentRouteLine.setLatLngs(latlngs);
-        else currentRouteLine = L.polyline(latlngs, { color: '#e67e22', weight: 5, opacity: 0.9 }).addTo(map);
+        else currentRouteLine = L.polyline(latlngs, { color: getUserColor(userName), weight: 6, opacity: 1.0 }).addTo(map);
 
         // Mark grid cell visited
         markCellVisited(lat, lng);
         updateTrackingStats();
+        saveTrackingState();
     }
 }
 
@@ -341,19 +437,20 @@ async function saveCurrentRoute() {
 
     // Reset current route line to a "past" style
     if (currentRouteLine) {
-        currentRouteLine.setStyle({ color: '#27ae60', weight: 5, opacity: 0.8 });
+        currentRouteLine.setStyle({ color: getUserColor(userName), weight: 6, opacity: 1.0 });
         pastRouteLines.push(currentRouteLine);
         currentRouteLine = null;
     }
     currentRoute = [];
+    saveTrackingState();
     updateGlobalStats();
 }
 
-async function loadRoutes() {
+async function loadRoutes(userLat = null, userLng = null, radiusKm = null) {
     let routes = [];
     if (useFirebase) {
         try {
-            const snap = await db.collection('routes').orderBy('startTime', 'desc').limit(100).get();
+            const snap = await db.collection('routes').orderBy('startTime', 'desc').get();
             routes = snap.docs.map(d => d.data());
         } catch (e) { console.error(e); }
     }
@@ -363,10 +460,25 @@ async function loadRoutes() {
 
     routes.forEach(r => {
         if (r.coordinates && r.coordinates.length > 1) {
-            const latlngs = r.coordinates.map(p => [p.lat, p.lng]);
-            const line = L.polyline(latlngs, { color: '#27ae60', weight: 5, opacity: 0.8 }).addTo(map);
-            pastRouteLines.push(line);
-            r.coordinates.forEach(p => markCellVisited(p.lat, p.lng, true));
+            let inRadius = true;
+            if (userLat !== null && userLng !== null && radiusKm !== null) {
+                inRadius = false;
+                for (let p of r.coordinates) {
+                    if (haversine(userLat, userLng, p.lat, p.lng) <= radiusKm * 1000) {
+                        inRadius = true;
+                        break;
+                    }
+                }
+            }
+
+            r.coordinates.forEach(p => markCellVisited(p.lat, p.lng, true, p.t, r.user));
+
+            if (inRadius) {
+                const latlngs = r.coordinates.map(p => [p.lat, p.lng]);
+                const routeColor = r.user ? getUserColor(r.user) : '#27ae60';
+                const line = L.polyline(latlngs, { color: routeColor, weight: 6, opacity: 1.0 }).addTo(map);
+                pastRouteLines.push(line);
+            }
         }
     });
     updateGlobalStats();
@@ -385,13 +497,14 @@ function getCellBounds(cellId) {
     );
 }
 
-function markCellVisited(lat, lng, skipSave) {
+function markCellVisited(lat, lng, skipSave, timestamp = null, routeUser = null) {
     const id = getCellId(lat, lng);
     if (!visitedCells[id]) {
-        visitedCells[id] = { count: 0, lastVisited: null, user: userName };
+        visitedCells[id] = { count: 0, lastVisited: null, user: routeUser || userName };
     }
     visitedCells[id].count++;
-    visitedCells[id].lastVisited = Date.now();
+    visitedCells[id].lastVisited = timestamp || Date.now();
+    if (routeUser && !visitedCells[id].user) visitedCells[id].user = routeUser;
 
     if (!skipSave) {
         localStorage.setItem('awGrid', JSON.stringify(visitedCells));
