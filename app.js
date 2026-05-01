@@ -1,5 +1,5 @@
 // ===== CONFIGURATIE =====
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzLfS2vpTe5RHBDqKIQk1P5qMUmcPHZWZ1ZajBv1OoJ5qYLYsTDAiT2NKlen9La_ZjO/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwbwmAZv2Kq1DH_i-hVvdAPRHzoOLfL4Bn3CrmqvqMpMfzhq1mzA9Wd6mCpZTRykB2O/exec';
 
 // Firebase configuratie - VERVANG met jouw eigen project!
 // Ga naar https://console.firebase.google.com om een project aan te maken
