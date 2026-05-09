@@ -1,5 +1,5 @@
 // ===== CONFIGURATIE =====
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwbwmAZv2Kq1DH_i-hVvdAPRHzoOLfL4Bn3CrmqvqMpMfzhq1mzA9Wd6mCpZTRykB2O/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzLfS2vpTe5RHBDqKIQk1P5qMUmcPHZWZ1ZajBv1OoJ5qYLYsTDAiT2NKlen9La_ZjO/exec';
 
 // Firebase configuratie - VERVANG met jouw eigen project!
 // Ga naar https://console.firebase.google.com om een project aan te maken
@@ -465,6 +465,48 @@ async function saveCurrentRoute() {
     updateGlobalStats();
 }
 
+function cleanRouteCoordinates(coordinates, maxJumpMeters = 200) {
+    if (!coordinates || coordinates.length <= 1) return coordinates;
+
+    // We bewaren het eerste punt altijd
+    const cleaned = [coordinates[0]];
+
+    for (let i = 1; i < coordinates.length; i++) {
+        const prev = cleaned[cleaned.length - 1];
+        const curr = coordinates[i];
+        const dist = haversine(prev.lat, prev.lng, curr.lat, curr.lng);
+
+        // Als de afstand tussen het vorige (goedgekeurde) punt en het huidige punt 
+        // groter is dan maxJumpMeters, negeren we dit punt (het is een glitch).
+        if (dist > maxJumpMeters) {
+            continue; // Overslaan
+        }
+
+        cleaned.push(curr);
+    }
+    return cleaned;
+}
+
+function cleanStoredRoutes() {
+    try {
+        let routes = JSON.parse(localStorage.getItem('awRoutes') || '[]');
+        let modified = false;
+        routes.forEach(r => {
+            if (r.coordinates && r.coordinates.length > 1) {
+                const oldLen = r.coordinates.length;
+                r.coordinates = cleanRouteCoordinates(r.coordinates);
+                if (r.coordinates.length !== oldLen) modified = true;
+            }
+        });
+        if (modified) {
+            localStorage.setItem('awRoutes', JSON.stringify(routes));
+            console.log("Oude routes opgeschoond in localStorage.");
+        }
+    } catch (e) {
+        console.error("Fout bij opschonen routes", e);
+    }
+}
+
 async function loadRoutes(userLat = null, userLng = null, radiusKm = null) {
     let routes = [];
     if (useFirebase) {
@@ -479,6 +521,7 @@ async function loadRoutes(userLat = null, userLng = null, radiusKm = null) {
 
     routes.forEach(r => {
         if (r.coordinates && r.coordinates.length > 1) {
+            r.coordinates = cleanRouteCoordinates(r.coordinates);
             let inRadius = true;
             if (userLat !== null && userLng !== null && radiusKm !== null) {
                 inRadius = false;
@@ -868,6 +911,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderItems();
     updateTotal();
     initFirebase();
+    cleanStoredRoutes();
     initMap();
     updateUserDisplay();
     updateGlobalStats();
